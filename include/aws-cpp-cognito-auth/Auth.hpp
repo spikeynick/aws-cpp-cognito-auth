@@ -29,16 +29,20 @@
 #include <string>
 
 #include "aws/core/auth/AWSCredentialsProvider.h"
+#include "aws/cognito-idp/CognitoIdentityProviderClient.h"
 
 #include "Exception.hpp"
 
 
 namespace awsx {
 
+
 	class CognitoAuth {
 	protected:
 		std::string m_clientId;
 		std::string m_regionId;
+	    Aws::Client::ClientConfiguration m_clientConfig;
+        Aws::CognitoIdentityProvider::CognitoIdentityProviderClient *cipClient;
 
 		template <class TException, typename TResult> void ThrowIf( TResult & result )
 		{
@@ -52,7 +56,25 @@ namespace awsx {
 			: m_regionId( regionId )
 			, m_clientId( clientId )
 		{
-		}
+            m_clientConfig.region = Aws::String( m_regionId.c_str() );	
+            cipClient = new Aws::CognitoIdentityProvider::CognitoIdentityProviderClient(m_clientConfig);
+	    }
+        virtual ~CognitoAuth() {
+            if (cipClient) {
+                delete cipClient;
+            }
+        }
+
+        Aws::CognitoIdentityProvider::Model::AuthenticationResultType GetTokens(
+            const std::string & username,
+            const std::string & password,
+            const std::string & userPoolId);
+
+        Aws::CognitoIdentityProvider::Model::AuthenticationResultType RefreshTokens(
+            Aws::String refreshToken
+            );
+
+
 
 		Aws::Auth::AWSCredentials Authenticate(
 			const std::string & username,

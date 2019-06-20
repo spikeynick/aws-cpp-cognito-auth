@@ -47,17 +47,11 @@
 
 using namespace awsx;
 
-
-Aws::Auth::AWSCredentials CognitoAuth::Authenticate(
-	const std::string & username,
-	const std::string & password,
-	const std::string & userPoolId,
-	const std::string & identityPoolId )
+Aws::CognitoIdentityProvider::Model::AuthenticationResultType CognitoAuth::GetTokens(
+    const std::string & username,
+    const std::string & password,
+    const std::string & userPoolId)
 {
-	Aws::Auth::AWSCredentials result;
-
-	Aws::Client::ClientConfiguration clientConfig;
-	clientConfig.region = Aws::String( m_regionId.c_str() );
 
 	Srp srp;
 
@@ -65,14 +59,12 @@ Aws::Auth::AWSCredentials CognitoAuth::Authenticate(
 	authParameters["USERNAME"] = username.c_str();
 	authParameters["SRP_A"] = srp.A();
 
-	Aws::CognitoIdentityProvider::CognitoIdentityProviderClient cipClient( clientConfig );
-
 	Aws::CognitoIdentityProvider::Model::InitiateAuthRequest authRequest;
 	authRequest.SetClientId( m_clientId.c_str() );
 	authRequest.SetAuthFlow( Aws::CognitoIdentityProvider::Model::AuthFlowType::USER_SRP_AUTH );
 	authRequest.SetAuthParameters( authParameters );
 
-	auto authResult = cipClient.InitiateAuth( authRequest );
+	auto authResult = cipClient->InitiateAuth( authRequest );
 	ThrowIf<Exception>( authResult );
 
 	auto challengeParameters = authResult.GetResult().GetChallengeParameters();
@@ -112,14 +104,26 @@ Aws::Auth::AWSCredentials CognitoAuth::Authenticate(
 	challengeRequest.AddChallengeResponses( "USERNAME", username.c_str() );
 	challengeRequest.AddChallengeResponses( "TIMESTAMP", timestamp.c_str() );
 
-	auto challengeResult = cipClient.RespondToAuthChallenge( challengeRequest );
+	auto challengeResult = cipClient->RespondToAuthChallenge( challengeRequest );
 	ThrowIf<Exception>( challengeResult );
 
-	auto token = challengeResult.GetResult().GetAuthenticationResult().GetIdToken().c_str();
+    return challengeResult.GetResult().GetAuthenticationResult();
+}
+
+
+Aws::Auth::AWSCredentials CognitoAuth::Authenticate(
+    const std::string & username,
+    const std::string & password,
+    const std::string & userPoolId,
+    const std::string & identityPoolId)
+{
+    Aws::Auth::AWSCredentials result;
+
+    auto token = GetTokens(username, password,userPoolId).GetIdToken().c_str();
 
 	std::string login = ("cognito-idp." + m_regionId + ".amazonaws.com/" + m_regionId + "_" + userPoolId);
 
-	Aws::CognitoIdentity::CognitoIdentityClient ciClient( clientConfig );
+	Aws::CognitoIdentity::CognitoIdentityClient ciClient( m_clientConfig );
 
 	Aws::CognitoIdentity::Model::GetIdRequest idRequest;
 	idRequest.SetIdentityPoolId( identityPoolId.c_str() );
@@ -141,3 +145,28 @@ Aws::Auth::AWSCredentials CognitoAuth::Authenticate(
 
 	return result;
 }
+
+Aws::CognitoIdentityProvider::Model::AuthenticationResultType CognitoAuth::RefreshTokens(
+    Aws::String refreshToken
+    ) {
+
+    Srp srp;
+
+    Aws::Map<Aws::String, Aws::String> authParameters;
+    //authParameters["USERNAME"] = username.c_str();
+    //authParameters["SRP_A"] = srp.A();
+    authParameters["REFRESH_TOKEN"] = refreshToken;
+    //Aws::CognitoIdentityProvider::CognitoIdentityProviderClient cipClient(m_clientConfig);
+
+    Aws::CognitoIdentityProvider::Model::InitiateAuthRequest authRequest;
+    authRequest.SetClientId(m_clientId.c_str());
+    authRequest.SetAuthFlow(Aws::CognitoIdentityProvider::Model::AuthFlowType::REFRESH_TOKEN_AUTH);
+    authRequest.SetAuthParameters(authParameters);
+
+    auto authResult = cipClient->InitiateAuth(authRequest);
+    auto cName = authResult.GetResult().GetChallengeName();
+    auto e = authResult.GetError().GetMessage();
+    auto challengeParameters = authResult.GetResult().GetChallengeParameters();
+    return authResult.GetResult().GetAuthenticationResult();
+}
+

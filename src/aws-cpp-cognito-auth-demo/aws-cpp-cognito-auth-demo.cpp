@@ -28,8 +28,16 @@
 int main()
 {
 	Aws::SDKOptions options;
-	Aws::InitAPI( options );
-
+    options.monitoringOptions.customizedMonitoringFactory_create_fn = std::vector<Aws::Monitoring::MonitoringFactoryCreateFunction>();
+    try {
+        Aws::InitAPI(options);
+    }
+    catch (const std::exception & x) {
+            std::cerr << x.what() << std::endl;
+        }
+        catch (...) {
+            std::cerr << "error" << std::endl;
+        }
 	try {
 		std::string regionId = "us-west-2";
 		std::string clientId = "";
@@ -39,11 +47,62 @@ int main()
 		std::string identityPoolId = "";	// without region
 
 		awsx::CognitoAuth auth( regionId, clientId );
-		auto creds = auth.Authenticate( username, password, userPoolId, identityPoolId );
+        auto token = auth.GetTokens(username, password, userPoolId);
+        std::cout << "Tokens Expire in: " << token.GetExpiresIn() << std::endl;
+        std::cout << std::endl;
+        if (token.AccessTokenHasBeenSet()) {
+            std::cout << "Access Token: " << token.GetAccessToken() << std::endl;
+        }
+        else {
+            std::cout << "No Access Token" << std::endl;
+        }
+        std::cout << std::endl;
+        if (token.IdTokenHasBeenSet()) {
+            std::cout << "Id Token: " << token.GetIdToken() << std::endl;
+        }
+        else {
+            std::cout << "No ID Token" << std::endl;
+        }
+        std::cout << std::endl;
 
-		if (!creds.GetAWSAccessKeyId().empty()) {
-			std::cout << "access key = " << creds.GetAWSAccessKeyId() << std::endl;
-		}
+        if (token.RefreshTokenHasBeenSet()) {
+            std::cout << "Refresh Token: " << token.GetRefreshToken() << std::endl;
+        }
+        else {
+            std::cout << "No Refresh Token" << std::endl;
+        }
+        _sleep(10000);
+        std::cout << std::endl << "Doing token Refresh"<<std::endl;
+        token = auth.RefreshTokens(token.GetRefreshToken());
+        //token = auth.GetTokens(username, password, userPoolId);
+
+        std::cout << "Tokens Expire in: " << token.GetExpiresIn() << std::endl;
+        if (token.AccessTokenHasBeenSet()) {
+            std::cout << "Access Token: " << token.GetAccessToken() << std::endl;
+        }
+        else {
+            std::cout << "No Access Token" << std::endl;
+        }
+        if (token.IdTokenHasBeenSet()) {
+            std::cout << "Id Token: " << token.GetIdToken() << std::endl;
+        }
+        else {
+            std::cout << "No ID Token" << std::endl;
+        }
+        if (token.RefreshTokenHasBeenSet()) {
+            std::cout << "Refresh Token: " << token.GetRefreshToken() << std::endl;
+        }
+        else {
+            std::cout << "No Refresh Token" << std::endl;
+        }
+
+
+        
+        auto creds = auth.Authenticate(username, password, userPoolId, identityPoolId);
+        if (!creds.GetAWSAccessKeyId().empty()) {
+            std::cout << "access key = " << creds.GetAWSAccessKeyId() << std::endl;
+        }
+
 	}
 	catch (const std::exception & x) {
 		std::cerr << x.what() << std::endl;

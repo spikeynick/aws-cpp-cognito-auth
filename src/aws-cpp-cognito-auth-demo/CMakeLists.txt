@@ -16,43 +16,57 @@ set(LIBS
 	aws-cpp-cognito-auth
 )
 
-# AWS SDK
 # Locate the AWS SDK for C++ package.
-find_package(aws-sdk-cpp)
+# If you've built and installed the AWS SDK CPP Package then 
+# name of the package you're looking for is AWSSDK
+#
+# Otherwise if you're linking to a development project then use
+# aws-sdk-cpp
+
+set(AWS_SDK_PACKAGE_NAME aws-sdk-cpp CACHE STRING "Name of AWS SDK CPP package to look for")
+
+find_package(${AWS_SDK_PACKAGE_NAME})
 
 if(NOT UNIX)
-	set(AWS_SDK_HOME d:/lib/aws-sdk-cpp-1.4.9)
+	set(AWS_SDK_HOME d:/lib/aws-sdk-cpp-1.4.9 CACHE PATH "AWS SDK install dir")
 
 	include_directories(
-		${AWS_SDK_HOME}/aws-cpp-sdk-core/include
-		${AWS_SDK_HOME}/aws-cpp-sdk-cognito-identity/include
-		${AWS_SDK_HOME}/aws-cpp-sdk-cognito-idp/include
+		${AWS_SDK_HOME}/include #If we're using an installed SDK
+		${AWS_SDK_HOME}/aws-cpp-sdk-core/include #If we're using a development project SDK
+		${AWS_SDK_HOME}/aws-cpp-sdk-cognito-identity/include #If we're using a development project SDK
+		${AWS_SDK_HOME}/aws-cpp-sdk-cognito-idp/include #If we're using a development project SDK
 	)
+	link_directories(${AWS_SDK_HOME}/bin)
+	
+	
 endif()
-
-set(LIBS
-	${LIBS}
-	aws-cpp-sdk-core
-	aws-cpp-sdk-cognito-identity
-	aws-cpp-sdk-cognito-idp
-)
 
 # Open SSL
 if(NOT UNIX)
-	set(OPEN_SSL_HOME d:/lib/OpenSSL-Win64)
+	set(OPEN_SSL_HOME d:/lib/OpenSSL-Win64 CACHE PATH "OPEN SSL DIR" )
 
-	include_directories(
-		${OPEN_SSL_HOME}/include
-	)
+	#include_directories(
+	#	${OPEN_SSL_HOME}/include
+	#)
 
 	link_directories(
 		${OPEN_SSL_HOME}/lib/VC
+		${OPEN_SSL_HOME}/lib/VC/static
 	)
+    link_directories (
+        ${AWS_SDK_HOME}/lib
+        
+    )
 
-	set(LIBS
-		${LIBS}
-		libcrypto64MT
-	)
+    
+    set(AWS_LIBS aws-cpp-sdk-core aws-cpp-sdk-access-management aws-cpp-sdk-cognito-identity aws-cpp-sdk-cognito-idp aws-cpp-sdk-config  aws-cpp-sdk-iam )
+    set(LIBS ${LIBS} ${AWS_LIBS} Bcrypt version Ws2_32 userenv Wininet winhttp )
+	set(BUILD_64bit true CACHE BOOL "Build 64bit binaries")
+	if(${BUILD_64bit})
+		set(LIBS ${LIBS} libcrypto64MT )
+	else() 	
+		set(LIBS ${LIBS} libcrypto32MT )
+	endif()
 else()
 	link_directories(
 		/usr/local/lib
@@ -67,7 +81,7 @@ endif()
 
 
 # Link to the SDK shared libraries.
-add_definitions(-DUSE_IMPORT_EXPORT)
+#add_definitions(-DUSE_IMPORT_EXPORT)
 
 
 # The executable name and its sourcefiles
